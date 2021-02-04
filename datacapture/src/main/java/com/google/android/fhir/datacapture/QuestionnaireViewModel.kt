@@ -18,11 +18,17 @@ package com.google.android.fhir.datacapture
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.google.android.fhir.datacapture.enablement.EnablementEvaluator
 import com.google.android.fhir.datacapture.views.QuestionnaireItemViewItem
 import com.google.fhir.common.JsonFormat
 import com.google.fhir.r4.core.Canonical
 import com.google.fhir.r4.core.Questionnaire
 import com.google.fhir.r4.core.QuestionnaireResponse
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 
 class QuestionnaireViewModel(state: SavedStateHandle) : ViewModel() {
     /** The current questionnaire as questions are being answered. */
@@ -31,8 +37,38 @@ class QuestionnaireViewModel(state: SavedStateHandle) : ViewModel() {
     /** The current questionnaire response as questions are being answered. */
     internal val questionnaireResponseBuilder = QuestionnaireResponse.newBuilder()
 
+    private val  modificationCount = MutableStateFlow(0)
+
+    private val notifyChangeCallback = {
+        modificationCount.value += 1
+    }
+    val questionnaires: Flow<List<QuestionnaireItemViewItem>> = modificationCount.map {
+        getQuestionnaireItemViewItemList()
+    }
+        //.stateIn(viewModelScope)
+
     /** The list of [QuestionnaireItemViewItem] to be used for the [RecyclerView]. */
-    internal val questionnaireItemViewItemList = mutableListOf<QuestionnaireItemViewItem>()
+    private fun getQuestionnaireItemViewItemList(): List<QuestionnaireItemViewItem> {
+        val map = buildMap(questionnaireResponseBuilder.itemBuilderList)
+
+        val questionnaireItemViewItemList = mutableListOf<QuestionnaireItemViewItem>()
+        populateQuestionnaireItemViewItemList(
+            questionnaireItemViewItemList,
+            questionnaire.itemList,
+            questionnaireResponseBuilder.itemBuilderList,
+            map
+        )
+
+        return questionnaireItemViewItemList.filter { it ->
+            EnablementEvaluator.evaluate(
+                it.questionnaireItem
+            ) { linkId ->
+                questionnaireItemViewItemList.single {
+                    it.questionnaireItem.linkId.value == linkId
+                }.questionnaireResponseItemBuilder.build()
+            }
+        }
+    }
 
     init {
         val questionnaireJson: String = state[QuestionnaireFragment.BUNDLE_KEY_QUESTIONNAIRE]!!
@@ -45,11 +81,16 @@ class QuestionnaireViewModel(state: SavedStateHandle) : ViewModel() {
         questionnaire.itemList.forEach {
             questionnaireResponseBuilder.addItem(it.createQuestionnaireResponseItem())
         }
-        populateQuestionnaireItemViewItemList(
-            questionnaireItemViewItemList,
-            questionnaire.itemList,
-            questionnaireResponseBuilder.itemBuilderList
-        )
+    }
+
+    private fun buildMap(
+        questionnaireResponseItemList: List<QuestionnaireResponse.Item.Builder>
+    ): Map<String, QuestionnaireResponse.Item.Builder> {
+        val map = questionnaireResponseItemList.map { it.linkId.value to it }.toMap().toMutableMap()
+        for (item in questionnaireResponseItemList) {
+            map.putAll(buildMap(item.itemBuilderList))
+        }
+        return map
     }
 
     /**
@@ -63,7 +104,8 @@ class QuestionnaireViewModel(state: SavedStateHandle) : ViewModel() {
     private fun populateQuestionnaireItemViewItemList(
         questionnaireItemViewItemList: MutableList<QuestionnaireItemViewItem>,
         questionnaireItemList: List<Questionnaire.Item>,
-        questionnaireResponseItemList: List<QuestionnaireResponse.Item.Builder>
+        questionnaireResponseItemList: List<QuestionnaireResponse.Item.Builder>,
+        map: Map<String, QuestionnaireResponse.Item.Builder>
     ) {
         val questionnaireItemListIterator = questionnaireItemList.iterator()
         val questionnaireResponseItemListIterator = questionnaireResponseItemList.iterator()
@@ -71,14 +113,19 @@ class QuestionnaireViewModel(state: SavedStateHandle) : ViewModel() {
             questionnaireResponseItemListIterator.hasNext()) {
             val questionnaireItem = questionnaireItemListIterator.next()
             val questionnaireResponseItem = questionnaireResponseItemListIterator.next()
-            questionnaireItemViewItemList.add(
-                QuestionnaireItemViewItem(questionnaireItem, questionnaireResponseItem)
-            )
-            populateQuestionnaireItemViewItemList(
-                questionnaireItemViewItemList,
-                questionnaireItem.itemList,
-                questionnaireResponseItem.itemBuilderList
-            )
+
+            if (EnablementEvaluator.evaluate(questionnaireItem) { linkId -> map[linkId]!!.build() }
+            ) {
+                questionnaireItemViewItemList.add(
+                    QuestionnaireItemViewItem(questionnaireItem, questionnaireResponseItem, notifyChangeCallback)
+                )
+                populateQuestionnaireItemViewItemList(
+                    questionnaireItemViewItemList,
+                    questionnaireItem.itemList,
+                    questionnaireResponseItem.itemBuilderList,
+                    map
+                )
+            }
         }
     }
 }

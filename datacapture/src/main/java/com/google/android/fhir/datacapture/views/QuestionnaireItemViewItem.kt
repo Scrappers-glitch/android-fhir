@@ -30,7 +30,8 @@ import com.google.fhir.r4.core.QuestionnaireResponse
  */
 data class QuestionnaireItemViewItem(
     val questionnaireItem: Questionnaire.Item,
-    val questionnaireResponseItemBuilder: QuestionnaireResponse.Item.Builder
+    val questionnaireResponseItemBuilder: QuestionnaireResponse.Item.Builder,
+    val notify: () -> Unit
 ) {
     /**
      * The single answer to the [QuestionnaireResponse.Item], or `null` if there is none or more

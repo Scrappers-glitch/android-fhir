@@ -24,11 +24,21 @@ import androidx.appcompat.view.ContextThemeWrapper
 import androidx.core.content.res.use
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.flow.collect
 
 class QuestionnaireFragment : Fragment() {
     private val viewModel: QuestionnaireViewModel by viewModels()
+    private lateinit var adapter: QuestionnaireItemAdapter
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        viewLifecycleOwner.lifecycleScope.launchWhenCreated {
+            viewModel.questionnaires.collect { adapter.submitList(it) }
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -50,8 +60,7 @@ class QuestionnaireFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val recyclerView = view.findViewById<RecyclerView>(R.id.recycler_view)
-        val adapter = QuestionnaireItemAdapter()
-        adapter.submitList(viewModel.questionnaireItemViewItemList)
+        adapter = QuestionnaireItemAdapter()
         recyclerView.adapter = adapter
         recyclerView.layoutManager = LinearLayoutManager(view.context)
     }

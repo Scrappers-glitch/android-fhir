@@ -72,6 +72,8 @@ object QuestionnaireItemRadioGroupViewHolderFactory : QuestionnaireItemViewHolde
                                     }.build()
                         }
                     )
+
+                    questionnaireItemViewItem.notify()
                 }
             }
         }
