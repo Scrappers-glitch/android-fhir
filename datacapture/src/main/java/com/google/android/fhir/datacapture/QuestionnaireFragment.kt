@@ -33,13 +33,6 @@ class QuestionnaireFragment : Fragment() {
     private val viewModel: QuestionnaireViewModel by viewModels()
     private lateinit var adapter: QuestionnaireItemAdapter
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        viewLifecycleOwner.lifecycleScope.launchWhenCreated {
-            viewModel.questionnaires.collect { adapter.submitList(it) }
-        }
-    }
-
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -63,6 +56,13 @@ class QuestionnaireFragment : Fragment() {
         adapter = QuestionnaireItemAdapter()
         recyclerView.adapter = adapter
         recyclerView.layoutManager = LinearLayoutManager(view.context)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        viewLifecycleOwner.lifecycleScope.launchWhenCreated {
+            viewModel.questionnaires.collect { adapter.submitList(it) }
+        }
     }
 
     // Returns the current questionnaire response
