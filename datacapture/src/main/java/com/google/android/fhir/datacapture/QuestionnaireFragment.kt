@@ -31,7 +31,6 @@ import kotlinx.coroutines.flow.collect
 
 class QuestionnaireFragment : Fragment() {
     private val viewModel: QuestionnaireViewModel by viewModels()
-    private lateinit var adapter: QuestionnaireItemAdapter
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -53,13 +52,10 @@ class QuestionnaireFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val recyclerView = view.findViewById<RecyclerView>(R.id.recycler_view)
-        adapter = QuestionnaireItemAdapter()
+        val adapter = QuestionnaireItemAdapter()
         recyclerView.adapter = adapter
         recyclerView.layoutManager = LinearLayoutManager(view.context)
-    }
 
-    override fun onStart() {
-        super.onStart()
         viewLifecycleOwner.lifecycleScope.launchWhenCreated {
             viewModel.questionnaires.collect { adapter.submitList(it) }
         }
